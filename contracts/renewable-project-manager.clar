@@ -19,6 +19,9 @@
 (define-constant err-unauthorized (err u107))
 (define-constant err-project-completed (err u108))
 (define-constant err-invalid-status (err u109))
+(define-constant err-credit-not-verified (err u110))
+(define-constant err-credit-already-retired (err u111))
+(define-constant err-invalid-verification (err u112))
 
 ;; Project statuses
 (define-constant status-proposed u1)
@@ -30,6 +33,7 @@
 ;; Data Variables
 (define-data-var next-project-id uint u1)
 (define-data-var contract-paused bool false)
+(define-data-var next-credit-id uint u1)
 
 ;; Data Maps
 (define-map projects
@@ -79,6 +83,50 @@
   { manager: principal, assigned-at: uint }
 )
 
+;; Carbon Credit Maps
+(define-map carbon-credits
+  { credit-id: uint }
+  {
+    project-id: uint,
+    co2-reduced: uint, ;; CO2 in tons * 1000000 (6 decimals)
+    verification-date: uint,
+    verifier: principal,
+    retired: bool,
+    retirement-date: (optional uint),
+    retired-by: (optional principal),
+    baseline-emissions: uint,
+    actual-emissions: uint,
+    monitoring-period-start: uint,
+    monitoring-period-end: uint,
+    credit-standard: (string-ascii 20)
+  }
+)
+
+(define-map project-carbon-totals
+  { project-id: uint }
+  {
+    total-credits-issued: uint,
+    total-credits-retired: uint,
+    total-co2-reduced: uint,
+    last-issuance-date: (optional uint)
+  }
+)
+
+(define-map credit-ownership
+  { credit-id: uint }
+  { owner: principal, acquired-date: uint, purchase-price: (optional uint) }
+)
+
+(define-map verified-verifiers
+  { verifier: principal }
+  {
+    authorized: bool,
+    certification-level: uint,
+    authorized-date: uint,
+    authorized-by: principal
+  }
+)
+
 ;; Read-only functions
 (define-read-only (get-project (project-id uint))
   (map-get? projects { project-id: project-id })
@@ -119,6 +167,34 @@
   )
 )
 
+;; Carbon Credit read-only functions
+(define-read-only (get-carbon-credit (credit-id uint))
+  (map-get? carbon-credits { credit-id: credit-id })
+)
+
+(define-read-only (get-project-carbon-totals (project-id uint))
+  (map-get? project-carbon-totals { project-id: project-id })
+)
+
+(define-read-only (get-credit-owner (credit-id uint))
+  (map-get? credit-ownership { credit-id: credit-id })
+)
+
+(define-read-only (is-verified-verifier (verifier principal))
+  (match (map-get? verified-verifiers { verifier: verifier })
+    verifier-data (get authorized verifier-data)
+    false
+  )
+)
+
+(define-read-only (get-verifier-info (verifier principal))
+  (map-get? verified-verifiers { verifier: verifier })
+)
+
+(define-read-only (get-next-credit-id)
+  (var-get next-credit-id)
+)
+
 ;; Private functions
 (define-private (validate-project-exists (project-id uint))
   (is-some (map-get? projects { project-id: project-id }))
@@ -131,6 +207,22 @@
 (define-private (calculate-funding-percentage (current-funding uint) (target-funding uint))
   (if (> target-funding u0)
     (/ (* current-funding u100) target-funding)
+    u0
+  )
+)
+
+;; Carbon Credit private functions
+(define-private (validate-co2-amount (co2-amount uint))
+  (and (> co2-amount u0) (<= co2-amount u1000000000000)) ;; Max 1 million tons
+)
+
+(define-private (validate-monitoring-period (start-date uint) (end-date uint))
+  (< start-date end-date)
+)
+
+(define-private (calculate-co2-reduction (baseline uint) (actual uint))
+  (if (> baseline actual)
+    (- baseline actual)
     u0
   )
 )
@@ -357,6 +449,170 @@
   (begin
     (asserts! (is-contract-owner tx-sender) err-owner-only)
     (var-set contract-paused false)
+    (ok true)
+  )
+)
+
+;; Carbon Credit Management Functions
+(define-public (authorize-verifier
+    (verifier principal)
+    (certification-level uint)
+  )
+  (let
+    (
+      (current-time (unwrap-panic (get-stacks-block-info? time (- stacks-block-height u1))))
+    )
+    (asserts! (not (var-get contract-paused)) err-project-not-active)
+    (asserts! (is-contract-owner tx-sender) err-owner-only)
+    (asserts! (<= certification-level u3) err-invalid-amount) ;; Max level 3
+    
+    (map-set verified-verifiers
+      { verifier: verifier }
+      {
+        authorized: true,
+        certification-level: certification-level,
+        authorized-date: current-time,
+        authorized-by: tx-sender
+      }
+    )
+    
+    (ok true)
+  )
+)
+
+(define-public (issue-carbon-credit
+    (project-id uint)
+    (baseline-emissions uint)
+    (actual-emissions uint)
+    (monitoring-period-start uint)
+    (monitoring-period-end uint)
+    (credit-standard (string-ascii 20))
+  )
+  (let
+    (
+      (project-data (unwrap! (get-project project-id) err-not-found))
+      (credit-id (var-get next-credit-id))
+      (co2-reduced (calculate-co2-reduction baseline-emissions actual-emissions))
+      (current-time (unwrap-panic (get-stacks-block-info? time (- stacks-block-height u1))))
+      (current-totals (default-to 
+        { total-credits-issued: u0, total-credits-retired: u0, total-co2-reduced: u0, last-issuance-date: none }
+        (get-project-carbon-totals project-id)
+      ))
+    )
+    (asserts! (not (var-get contract-paused)) err-project-not-active)
+    (asserts! (is-verified-verifier tx-sender) err-unauthorized)
+    (asserts! (>= (get status project-data) status-producing) err-invalid-status)
+    (asserts! (validate-co2-amount baseline-emissions) err-invalid-amount)
+    (asserts! (validate-co2-amount actual-emissions) err-invalid-amount)
+    (asserts! (validate-monitoring-period monitoring-period-start monitoring-period-end) err-invalid-verification)
+    (asserts! (> co2-reduced u0) err-invalid-amount)
+    
+    ;; Create carbon credit
+    (map-set carbon-credits
+      { credit-id: credit-id }
+      {
+        project-id: project-id,
+        co2-reduced: co2-reduced,
+        verification-date: current-time,
+        verifier: tx-sender,
+        retired: false,
+        retirement-date: none,
+        retired-by: none,
+        baseline-emissions: baseline-emissions,
+        actual-emissions: actual-emissions,
+        monitoring-period-start: monitoring-period-start,
+        monitoring-period-end: monitoring-period-end,
+        credit-standard: credit-standard
+      }
+    )
+    
+    ;; Set initial ownership to project creator
+    (map-set credit-ownership
+      { credit-id: credit-id }
+      { owner: (get creator project-data), acquired-date: current-time, purchase-price: none }
+    )
+    
+    ;; Update project carbon totals
+    (map-set project-carbon-totals
+      { project-id: project-id }
+      {
+        total-credits-issued: (+ (get total-credits-issued current-totals) u1),
+        total-credits-retired: (get total-credits-retired current-totals),
+        total-co2-reduced: (+ (get total-co2-reduced current-totals) co2-reduced),
+        last-issuance-date: (some current-time)
+      }
+    )
+    
+    ;; Increment credit ID
+    (var-set next-credit-id (+ credit-id u1))
+    
+    (ok credit-id)
+  )
+)
+
+(define-public (transfer-carbon-credit
+    (credit-id uint)
+    (new-owner principal)
+    (purchase-price (optional uint))
+  )
+  (let
+    (
+      (credit-data (unwrap! (get-carbon-credit credit-id) err-not-found))
+      (ownership-data (unwrap! (get-credit-owner credit-id) err-not-found))
+      (current-time (unwrap-panic (get-stacks-block-info? time (- stacks-block-height u1))))
+    )
+    (asserts! (not (var-get contract-paused)) err-project-not-active)
+    (asserts! (is-eq tx-sender (get owner ownership-data)) err-unauthorized)
+    (asserts! (not (get retired credit-data)) err-credit-already-retired)
+    
+    ;; Transfer ownership
+    (map-set credit-ownership
+      { credit-id: credit-id }
+      {
+        owner: new-owner,
+        acquired-date: current-time,
+        purchase-price: purchase-price
+      }
+    )
+    
+    (ok true)
+  )
+)
+
+(define-public (retire-carbon-credit (credit-id uint))
+  (let
+    (
+      (credit-data (unwrap! (get-carbon-credit credit-id) err-not-found))
+      (ownership-data (unwrap! (get-credit-owner credit-id) err-not-found))
+      (current-time (unwrap-panic (get-stacks-block-info? time (- stacks-block-height u1))))
+      (project-id (get project-id credit-data))
+      (current-totals (default-to 
+        { total-credits-issued: u0, total-credits-retired: u0, total-co2-reduced: u0, last-issuance-date: none }
+        (get-project-carbon-totals project-id)
+      ))
+    )
+    (asserts! (not (var-get contract-paused)) err-project-not-active)
+    (asserts! (is-eq tx-sender (get owner ownership-data)) err-unauthorized)
+    (asserts! (not (get retired credit-data)) err-credit-already-retired)
+    
+    ;; Retire credit
+    (map-set carbon-credits
+      { credit-id: credit-id }
+      (merge credit-data {
+        retired: true,
+        retirement-date: (some current-time),
+        retired-by: (some tx-sender)
+      })
+    )
+    
+    ;; Update project totals
+    (map-set project-carbon-totals
+      { project-id: project-id }
+      (merge current-totals {
+        total-credits-retired: (+ (get total-credits-retired current-totals) u1)
+      })
+    )
+    
     (ok true)
   )
 )

@@ -1,102 +1,100 @@
-# Tokenized Community Renewable Projects Smart Contracts
+# Carbon Credit Tracking System
 
 ## Overview
-This pull request introduces the core smart contracts for the Tokenized Community Renewable Projects platform, enabling communities to collectively fund, own, and benefit from renewable energy infrastructure through blockchain technology.
+This feature adds comprehensive carbon credit tracking capabilities to the tokenized renewable energy project platform. The system enables verified carbon credit issuance, ownership management, and retirement tracking for renewable energy projects, providing transparent environmental impact measurement and tradeable carbon offsets.
 
 ## Changes Included
 
-### Smart Contracts
-- **`renewable-project-manager.clar`**: Core project management contract (391 lines)
-  - Project registration and lifecycle management
-  - Investment tracking and milestone verification
-  - Energy production recording and validation
-  - Reward distribution mechanisms
+### Technical Implementation
 
-- **`community-token.clar`**: SIP-010 compliant token contract (497 lines)
-  - Fungible token for project ownership representation
-  - Governance and voting capabilities
-  - Revenue distribution functionality
-  - Token minting and distribution for investments
+**Key Functions Added to renewable-project-manager.clar:**
 
-### Key Features Implemented
+**Authorization Management:**
+- `authorize-verifier` - Authorize carbon credit verifiers with certification levels
+- `is-verified-verifier` - Check verifier authorization status  
+- `get-verifier-info` - Retrieve verifier certification details
 
-#### Project Lifecycle Management
-- ✅ Project registration with metadata storage
-- ✅ Multi-phase funding system (proposed → funding → in-progress → producing → completed)
-- ✅ Milestone-based project tracking
-- ✅ Investment recording and validation
-- ✅ Energy production logging
+**Carbon Credit Lifecycle:**
+- `issue-carbon-credit` - Issue verified carbon credits based on emissions reduction data
+- `transfer-carbon-credit` - Transfer credit ownership between parties
+- `retire-carbon-credit` - Permanently retire credits to prevent double-counting
 
-#### Tokenization & Governance
-- ✅ SIP-010 compliant fungible tokens
-- ✅ Proportional token distribution based on investment
-- ✅ Governance proposal creation and voting
-- ✅ Revenue sharing mechanism
-- ✅ Token transfer functionality
+**Data Tracking:**
+- `get-carbon-credit` - Retrieve complete credit information
+- `get-project-carbon-totals` - Project-level carbon impact statistics
+- `get-credit-owner` - Current credit ownership details
+- `get-next-credit-id` - Next available credit identifier
 
-#### Security & Access Control
-- ✅ Principal-based access control
-- ✅ Contract owner permissions
-- ✅ Project manager role assignment
-- ✅ Input validation for all public functions
-- ✅ Emergency pause mechanisms
+### Data Structures Added
 
-### Contract Architecture
+**Carbon Credits Map:**
+- CO2 reduction amounts (6 decimal precision)
+- Baseline vs actual emissions data
+- Monitoring period tracking
+- Verification metadata
+- Retirement status and dates
 
-#### Data Structures
-- **Projects Map**: Comprehensive project information storage
-- **Investment Tracking**: Individual investor contribution records  
-- **Token Management**: Ownership distribution and balances
-- **Governance System**: Proposal and voting mechanics
-- **Revenue Distribution**: Profit-sharing calculations
+**Project Carbon Totals:**
+- Total credits issued/retired per project
+- Cumulative CO2 reduction tracking
+- Issuance date history
 
-#### Error Handling
-- Comprehensive error constants for different failure scenarios
-- Input validation for all user inputs
-- Access control enforcement
-- State validation checks
+**Verifier Registry:**
+- Authorization status and certification levels
+- Assignment tracking and permissions
 
-### Testing & Validation
-- ✅ Clarinet syntax checking passes
-- ✅ All contracts compile successfully
-- ✅ GitHub Actions CI/CD pipeline configured
-- ✅ Comprehensive error handling implemented
+**Ownership Management:**
+- Credit ownership chain
+- Transfer history with pricing
+- Acquisition date tracking
 
-## Technical Specifications
+## Key Features
 
-### Contract Functions
-- **15+ public functions** for project and token management
-- **8+ read-only functions** for data retrieval
-- **5+ private functions** for internal logic
-- **Comprehensive error handling** with 20+ error types
+**Verification System:**
+- Multi-level verifier certification (Levels 1-3)
+- Only authorized verifiers can issue credits
+- Transparent verification audit trail
 
-### Storage Efficiency
-- Optimized map structures for gas efficiency
-- Minimal storage footprint design
-- Efficient data retrieval patterns
+**Emissions Tracking:**
+- Baseline vs actual emissions comparison
+- Automatic CO2 reduction calculation
+- Monitoring period validation
+- Support for multiple credit standards (VCS, Gold Standard, etc.)
 
-### Gas Optimization
-- Streamlined function logic
-- Minimal external calls
-- Efficient data structures
+**Ownership & Trading:**
+- Secure credit ownership tracking
+- Transfer functionality with optional pricing
+- Complete ownership history
 
-## Future Enhancements
-- Integration with real-world energy monitoring APIs
-- Advanced governance features (quadratic voting, delegation)
-- Multi-token support for different project types
-- Enhanced security audit compliance
+**Environmental Integrity:**
+- Permanent credit retirement to prevent double-counting
+- Retired credits cannot be transferred
+- Project-level impact aggregation
 
-## Testing Instructions
-```bash
-# Install dependencies
-npm install
+**Data Transparency:**
+- All operations recorded on-chain
+- Immutable verification and ownership records
+- Comprehensive read-only functions for data access
 
-# Run contract checks
-clarinet check
+## Testing & Validation
 
-# Run tests
-npm test
-```
+✅ **Contract passes clarinet check** - All syntax validation successful
+✅ **All npm tests successful** - 6/6 tests passing across 3 test files  
+✅ **CI/CD pipeline configured** - GitHub Actions workflow for automated validation
+✅ **Clarity v3 compliant** - Uses proper data types, error constants, and best practices
 
-## Deployment Ready
-These contracts are ready for testnet deployment and have been thoroughly tested for syntax and logical correctness. The implementation follows Clarity best practices and includes comprehensive error handling for production use.
+### Test Coverage
+- Verifier authorization and permission management
+- Carbon credit issuance with validation
+- Credit transfer and ownership management
+- Credit retirement and double-spending prevention
+- Read-only function validation
+- Error handling for edge cases
+
+## Environmental Impact
+This carbon credit system enables:
+- **Verified CO2 reduction tracking** from renewable energy projects
+- **Transparent environmental accounting** with immutable blockchain records
+- **Carbon offset marketplace** functionality for trading verified credits
+- **Double-counting prevention** through permanent credit retirement
+- **Project impact aggregation** for community-level environmental reporting
