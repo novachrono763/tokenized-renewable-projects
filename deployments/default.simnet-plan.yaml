@@ -62,11 +62,11 @@ plan:
         - emulated-contract-publish:
             contract-name: community-token
             emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
-            path: contracts/community-token.clar
+            path: "contracts\\community-token.clar"
             clarity-version: 3
         - emulated-contract-publish:
             contract-name: renewable-project-manager
             emulated-sender: ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM
-            path: contracts/renewable-project-manager.clar
+            path: "contracts\\renewable-project-manager.clar"
             clarity-version: 3
       epoch: "3.1"
