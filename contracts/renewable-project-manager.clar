@@ -49,38 +49,53 @@
     created-at: uint,
     completion-date: (optional uint),
     energy-capacity: uint,
-    total-energy-produced: uint
+    total-energy-produced: uint,
   }
 )
 
 (define-map project-investments
-  { project-id: uint, investor: principal }
-  { amount: uint, timestamp: uint }
+  {
+    project-id: uint,
+    investor: principal,
+  }
+  {
+    amount: uint,
+    timestamp: uint,
+  }
 )
 
 (define-map project-milestones
-  { project-id: uint, milestone-id: uint }
+  {
+    project-id: uint,
+    milestone-id: uint,
+  }
   {
     description: (string-ascii 100),
     funding-percentage: uint,
     completed: bool,
-    completion-date: (optional uint)
+    completion-date: (optional uint),
   }
 )
 
 (define-map energy-production
-  { project-id: uint, period: uint }
+  {
+    project-id: uint,
+    period: uint,
+  }
   {
     energy-produced: uint,
     revenue-generated: uint,
     recorded-by: principal,
-    timestamp: uint
+    timestamp: uint,
   }
 )
 
 (define-map project-managers
   { project-id: uint }
-  { manager: principal, assigned-at: uint }
+  {
+    manager: principal,
+    assigned-at: uint,
+  }
 )
 
 ;; Carbon Credit Maps
@@ -98,7 +113,7 @@
     actual-emissions: uint,
     monitoring-period-start: uint,
     monitoring-period-end: uint,
-    credit-standard: (string-ascii 20)
+    credit-standard: (string-ascii 20),
   }
 )
 
@@ -108,13 +123,17 @@
     total-credits-issued: uint,
     total-credits-retired: uint,
     total-co2-reduced: uint,
-    last-issuance-date: (optional uint)
+    last-issuance-date: (optional uint),
   }
 )
 
 (define-map credit-ownership
   { credit-id: uint }
-  { owner: principal, acquired-date: uint, purchase-price: (optional uint) }
+  {
+    owner: principal,
+    acquired-date: uint,
+    purchase-price: (optional uint),
+  }
 )
 
 (define-map verified-verifiers
@@ -123,7 +142,17 @@
     authorized: bool,
     certification-level: uint,
     authorized-date: uint,
-    authorized-by: principal
+    authorized-by: principal,
+  }
+)
+
+(define-map project-escrows
+  { project-id: uint }
+  {
+    payer: principal,
+    payee: principal,
+    amount: uint,
+    released: bool,
   }
 )
 
@@ -132,16 +161,34 @@
   (map-get? projects { project-id: project-id })
 )
 
-(define-read-only (get-project-investment (project-id uint) (investor principal))
-  (map-get? project-investments { project-id: project-id, investor: investor })
+(define-read-only (get-project-investment
+    (project-id uint)
+    (investor principal)
+  )
+  (map-get? project-investments {
+    project-id: project-id,
+    investor: investor,
+  })
 )
 
-(define-read-only (get-project-milestone (project-id uint) (milestone-id uint))
-  (map-get? project-milestones { project-id: project-id, milestone-id: milestone-id })
+(define-read-only (get-project-milestone
+    (project-id uint)
+    (milestone-id uint)
+  )
+  (map-get? project-milestones {
+    project-id: project-id,
+    milestone-id: milestone-id,
+  })
 )
 
-(define-read-only (get-energy-production (project-id uint) (period uint))
-  (map-get? energy-production { project-id: project-id, period: period })
+(define-read-only (get-energy-production
+    (project-id uint)
+    (period uint)
+  )
+  (map-get? energy-production {
+    project-id: project-id,
+    period: period,
+  })
 )
 
 (define-read-only (get-project-manager (project-id uint))
@@ -152,7 +199,7 @@
   {
     next-project-id: (var-get next-project-id),
     contract-paused: (var-get contract-paused),
-    contract-owner: contract-owner
+    contract-owner: contract-owner,
   }
 )
 
@@ -160,7 +207,10 @@
   (is-eq user contract-owner)
 )
 
-(define-read-only (is-project-manager (project-id uint) (user principal))
+(define-read-only (is-project-manager
+    (project-id uint)
+    (user principal)
+  )
   (match (map-get? project-managers { project-id: project-id })
     manager-data (is-eq (get manager manager-data) user)
     false
@@ -178,6 +228,10 @@
 
 (define-read-only (get-credit-owner (credit-id uint))
   (map-get? credit-ownership { credit-id: credit-id })
+)
+
+(define-read-only (get-escrow (project-id uint))
+  (map-get? project-escrows { project-id: project-id })
 )
 
 (define-read-only (is-verified-verifier (verifier principal))
@@ -204,7 +258,10 @@
   (> amount u0)
 )
 
-(define-private (calculate-funding-percentage (current-funding uint) (target-funding uint))
+(define-private (calculate-funding-percentage
+    (current-funding uint)
+    (target-funding uint)
+  )
   (if (> target-funding u0)
     (/ (* current-funding u100) target-funding)
     u0
@@ -213,14 +270,21 @@
 
 ;; Carbon Credit private functions
 (define-private (validate-co2-amount (co2-amount uint))
-  (and (> co2-amount u0) (<= co2-amount u1000000000000)) ;; Max 1 million tons
+  (and (> co2-amount u0) (<= co2-amount u1000000000000))
+  ;; Max 1 million tons
 )
 
-(define-private (validate-monitoring-period (start-date uint) (end-date uint))
+(define-private (validate-monitoring-period
+    (start-date uint)
+    (end-date uint)
+  )
   (< start-date end-date)
 )
 
-(define-private (calculate-co2-reduction (baseline uint) (actual uint))
+(define-private (calculate-co2-reduction
+    (baseline uint)
+    (actual uint)
+  )
   (if (> baseline actual)
     (- baseline actual)
     u0
@@ -235,40 +299,38 @@
     (target-funding uint)
     (energy-capacity uint)
   )
-  (let
-    (
+  (let (
       (project-id (var-get next-project-id))
       (current-time (unwrap-panic (get-stacks-block-info? time (- stacks-block-height u1))))
     )
     (asserts! (not (var-get contract-paused)) err-project-not-active)
     (asserts! (> target-funding u0) err-invalid-amount)
     (asserts! (> energy-capacity u0) err-invalid-amount)
-    
-    (map-set projects
-      { project-id: project-id }
-      {
-        name: name,
-        description: description,
-        project-type: project-type,
-        target-funding: target-funding,
-        current-funding: u0,
-        creator: tx-sender,
-        status: status-proposed,
-        created-at: current-time,
-        completion-date: none,
-        energy-capacity: energy-capacity,
-        total-energy-produced: u0
-      }
-    )
-    
+
+    (map-set projects { project-id: project-id } {
+      name: name,
+      description: description,
+      project-type: project-type,
+      target-funding: target-funding,
+      current-funding: u0,
+      creator: tx-sender,
+      status: status-proposed,
+      created-at: current-time,
+      completion-date: none,
+      energy-capacity: energy-capacity,
+      total-energy-produced: u0,
+    })
+
     (var-set next-project-id (+ project-id u1))
     (ok project-id)
   )
 )
 
-(define-public (invest-in-project (project-id uint) (amount uint))
-  (let
-    (
+(define-public (invest-in-project
+    (project-id uint)
+    (amount uint)
+  )
+  (let (
       (project-data (unwrap! (get-project project-id) err-not-found))
       (current-time (unwrap-panic (get-stacks-block-info? time (- stacks-block-height u1))))
       (new-funding (+ (get current-funding project-data) amount))
@@ -276,162 +338,172 @@
     (asserts! (not (var-get contract-paused)) err-project-not-active)
     (asserts! (validate-funding-amount amount) err-invalid-amount)
     (asserts! (is-eq (get status project-data) status-funding) err-invalid-status)
-    
+
     ;; Record the investment
-    (map-set project-investments
-      { project-id: project-id, investor: tx-sender }
-      { amount: amount, timestamp: current-time }
-    )
-    
+    (map-set project-investments {
+      project-id: project-id,
+      investor: tx-sender,
+    } {
+      amount: amount,
+      timestamp: current-time,
+    })
+
     ;; Update project funding
-    (map-set projects
-      { project-id: project-id }
+    (map-set projects { project-id: project-id }
       (merge project-data { current-funding: new-funding })
     )
-    
+
     ;; Transfer STX from investor
     (stx-transfer? amount tx-sender (as-contract tx-sender))
   )
 )
 
 (define-public (start-funding (project-id uint))
-  (let
-    (
-      (project-data (unwrap! (get-project project-id) err-not-found))
-    )
+  (let ((project-data (unwrap! (get-project project-id) err-not-found)))
     (asserts! (not (var-get contract-paused)) err-project-not-active)
     (asserts! (is-eq tx-sender (get creator project-data)) err-unauthorized)
-    (asserts! (is-eq (get status project-data) status-proposed) err-invalid-status)
-    
-    (map-set projects
-      { project-id: project-id }
+    (asserts! (is-eq (get status project-data) status-proposed)
+      err-invalid-status
+    )
+
+    (map-set projects { project-id: project-id }
       (merge project-data { status: status-funding })
     )
-    
+
     (ok true)
   )
 )
 
-(define-public (start-project (project-id uint) (manager principal))
-  (let
-    (
+(define-public (start-project
+    (project-id uint)
+    (manager principal)
+  )
+  (let (
       (project-data (unwrap! (get-project project-id) err-not-found))
       (current-time (unwrap-panic (get-stacks-block-info? time (- stacks-block-height u1))))
-      (funding-percentage (calculate-funding-percentage 
-        (get current-funding project-data) 
-        (get target-funding project-data)))
+      (funding-percentage (calculate-funding-percentage (get current-funding project-data)
+        (get target-funding project-data)
+      ))
     )
     (asserts! (not (var-get contract-paused)) err-project-not-active)
     (asserts! (is-eq tx-sender (get creator project-data)) err-unauthorized)
     (asserts! (is-eq (get status project-data) status-funding) err-invalid-status)
-    (asserts! (>= funding-percentage u50) err-insufficient-funds) ;; At least 50% funded
-    
+    (asserts! (>= funding-percentage u50) err-insufficient-funds)
+    ;; At least 50% funded
+
     ;; Assign project manager
-    (map-set project-managers
-      { project-id: project-id }
-      { manager: manager, assigned-at: current-time }
-    )
-    
+    (map-set project-managers { project-id: project-id } {
+      manager: manager,
+      assigned-at: current-time,
+    })
+
     ;; Update project status
-    (map-set projects
-      { project-id: project-id }
+    (map-set projects { project-id: project-id }
       (merge project-data { status: status-in-progress })
     )
-    
+
     (ok true)
   )
 )
 
-(define-public (record-energy-production 
+(define-public (record-energy-production
     (project-id uint)
     (period uint)
     (energy-produced uint)
     (revenue-generated uint)
   )
-  (let
-    (
+  (let (
       (project-data (unwrap! (get-project project-id) err-not-found))
       (current-time (unwrap-panic (get-stacks-block-info? time (- stacks-block-height u1))))
       (new-total-energy (+ (get total-energy-produced project-data) energy-produced))
     )
     (asserts! (not (var-get contract-paused)) err-project-not-active)
-    (asserts! (or 
-      (is-project-manager project-id tx-sender)
-      (is-eq tx-sender (get creator project-data))
-    ) err-unauthorized)
+    (asserts!
+      (or
+        (is-project-manager project-id tx-sender)
+        (is-eq tx-sender (get creator project-data))
+      )
+      err-unauthorized
+    )
     (asserts! (>= (get status project-data) status-producing) err-invalid-status)
     (asserts! (> energy-produced u0) err-invalid-amount)
-    
+
     ;; Record energy production
-    (map-set energy-production
-      { project-id: project-id, period: period }
-      {
-        energy-produced: energy-produced,
-        revenue-generated: revenue-generated,
-        recorded-by: tx-sender,
-        timestamp: current-time
-      }
-    )
-    
+    (map-set energy-production {
+      project-id: project-id,
+      period: period,
+    } {
+      energy-produced: energy-produced,
+      revenue-generated: revenue-generated,
+      recorded-by: tx-sender,
+      timestamp: current-time,
+    })
+
     ;; Update total energy produced
-    (map-set projects
-      { project-id: project-id }
-      (merge project-data { 
+    (map-set projects { project-id: project-id }
+      (merge project-data {
         total-energy-produced: new-total-energy,
-        status: status-producing
+        status: status-producing,
       })
     )
-    
+
     (ok true)
   )
 )
 
-(define-public (complete-milestone (project-id uint) (milestone-id uint))
-  (let
-    (
+(define-public (complete-milestone
+    (project-id uint)
+    (milestone-id uint)
+  )
+  (let (
       (project-data (unwrap! (get-project project-id) err-not-found))
       (milestone-data (unwrap! (get-project-milestone project-id milestone-id) err-not-found))
       (current-time (unwrap-panic (get-stacks-block-info? time (- stacks-block-height u1))))
     )
     (asserts! (not (var-get contract-paused)) err-project-not-active)
-    (asserts! (or 
-      (is-project-manager project-id tx-sender)
-      (is-eq tx-sender (get creator project-data))
-    ) err-unauthorized)
+    (asserts!
+      (or
+        (is-project-manager project-id tx-sender)
+        (is-eq tx-sender (get creator project-data))
+      )
+      err-unauthorized
+    )
     (asserts! (not (get completed milestone-data)) err-milestone-not-reached)
-    
+
     ;; Mark milestone as completed
-    (map-set project-milestones
-      { project-id: project-id, milestone-id: milestone-id }
-      (merge milestone-data { 
+    (map-set project-milestones {
+      project-id: project-id,
+      milestone-id: milestone-id,
+    }
+      (merge milestone-data {
         completed: true,
-        completion-date: (some current-time)
+        completion-date: (some current-time),
       })
     )
-    
+
     (ok true)
   )
 )
 
 (define-public (complete-project (project-id uint))
-  (let
-    (
+  (let (
       (project-data (unwrap! (get-project project-id) err-not-found))
       (current-time (unwrap-panic (get-stacks-block-info? time (- stacks-block-height u1))))
     )
     (asserts! (not (var-get contract-paused)) err-project-not-active)
     (asserts! (is-eq tx-sender (get creator project-data)) err-unauthorized)
-    (asserts! (is-eq (get status project-data) status-producing) err-invalid-status)
-    
+    (asserts! (is-eq (get status project-data) status-producing)
+      err-invalid-status
+    )
+
     ;; Mark project as completed
-    (map-set projects
-      { project-id: project-id }
-      (merge project-data { 
+    (map-set projects { project-id: project-id }
+      (merge project-data {
         status: status-completed,
-        completion-date: (some current-time)
+        completion-date: (some current-time),
       })
     )
-    
+
     (ok true)
   )
 )
@@ -458,24 +530,19 @@
     (verifier principal)
     (certification-level uint)
   )
-  (let
-    (
-      (current-time (unwrap-panic (get-stacks-block-info? time (- stacks-block-height u1))))
-    )
+  (let ((current-time (unwrap-panic (get-stacks-block-info? time (- stacks-block-height u1)))))
     (asserts! (not (var-get contract-paused)) err-project-not-active)
     (asserts! (is-contract-owner tx-sender) err-owner-only)
-    (asserts! (<= certification-level u3) err-invalid-amount) ;; Max level 3
-    
-    (map-set verified-verifiers
-      { verifier: verifier }
-      {
-        authorized: true,
-        certification-level: certification-level,
-        authorized-date: current-time,
-        authorized-by: tx-sender
-      }
-    )
-    
+    (asserts! (<= certification-level u3) err-invalid-amount)
+    ;; Max level 3
+
+    (map-set verified-verifiers { verifier: verifier } {
+      authorized: true,
+      certification-level: certification-level,
+      authorized-date: current-time,
+      authorized-by: tx-sender,
+    })
+
     (ok true)
   )
 )
@@ -488,14 +555,17 @@
     (monitoring-period-end uint)
     (credit-standard (string-ascii 20))
   )
-  (let
-    (
+  (let (
       (project-data (unwrap! (get-project project-id) err-not-found))
       (credit-id (var-get next-credit-id))
       (co2-reduced (calculate-co2-reduction baseline-emissions actual-emissions))
       (current-time (unwrap-panic (get-stacks-block-info? time (- stacks-block-height u1))))
-      (current-totals (default-to 
-        { total-credits-issued: u0, total-credits-retired: u0, total-co2-reduced: u0, last-issuance-date: none }
+      (current-totals (default-to {
+        total-credits-issued: u0,
+        total-credits-retired: u0,
+        total-co2-reduced: u0,
+        last-issuance-date: none,
+      }
         (get-project-carbon-totals project-id)
       ))
     )
@@ -504,48 +574,46 @@
     (asserts! (>= (get status project-data) status-producing) err-invalid-status)
     (asserts! (validate-co2-amount baseline-emissions) err-invalid-amount)
     (asserts! (validate-co2-amount actual-emissions) err-invalid-amount)
-    (asserts! (validate-monitoring-period monitoring-period-start monitoring-period-end) err-invalid-verification)
+    (asserts!
+      (validate-monitoring-period monitoring-period-start monitoring-period-end)
+      err-invalid-verification
+    )
     (asserts! (> co2-reduced u0) err-invalid-amount)
-    
+
     ;; Create carbon credit
-    (map-set carbon-credits
-      { credit-id: credit-id }
-      {
-        project-id: project-id,
-        co2-reduced: co2-reduced,
-        verification-date: current-time,
-        verifier: tx-sender,
-        retired: false,
-        retirement-date: none,
-        retired-by: none,
-        baseline-emissions: baseline-emissions,
-        actual-emissions: actual-emissions,
-        monitoring-period-start: monitoring-period-start,
-        monitoring-period-end: monitoring-period-end,
-        credit-standard: credit-standard
-      }
-    )
-    
+    (map-set carbon-credits { credit-id: credit-id } {
+      project-id: project-id,
+      co2-reduced: co2-reduced,
+      verification-date: current-time,
+      verifier: tx-sender,
+      retired: false,
+      retirement-date: none,
+      retired-by: none,
+      baseline-emissions: baseline-emissions,
+      actual-emissions: actual-emissions,
+      monitoring-period-start: monitoring-period-start,
+      monitoring-period-end: monitoring-period-end,
+      credit-standard: credit-standard,
+    })
+
     ;; Set initial ownership to project creator
-    (map-set credit-ownership
-      { credit-id: credit-id }
-      { owner: (get creator project-data), acquired-date: current-time, purchase-price: none }
-    )
-    
+    (map-set credit-ownership { credit-id: credit-id } {
+      owner: (get creator project-data),
+      acquired-date: current-time,
+      purchase-price: none,
+    })
+
     ;; Update project carbon totals
-    (map-set project-carbon-totals
-      { project-id: project-id }
-      {
-        total-credits-issued: (+ (get total-credits-issued current-totals) u1),
-        total-credits-retired: (get total-credits-retired current-totals),
-        total-co2-reduced: (+ (get total-co2-reduced current-totals) co2-reduced),
-        last-issuance-date: (some current-time)
-      }
-    )
-    
+    (map-set project-carbon-totals { project-id: project-id } {
+      total-credits-issued: (+ (get total-credits-issued current-totals) u1),
+      total-credits-retired: (get total-credits-retired current-totals),
+      total-co2-reduced: (+ (get total-co2-reduced current-totals) co2-reduced),
+      last-issuance-date: (some current-time),
+    })
+
     ;; Increment credit ID
     (var-set next-credit-id (+ credit-id u1))
-    
+
     (ok credit-id)
   )
 )
@@ -555,8 +623,7 @@
     (new-owner principal)
     (purchase-price (optional uint))
   )
-  (let
-    (
+  (let (
       (credit-data (unwrap! (get-carbon-credit credit-id) err-not-found))
       (ownership-data (unwrap! (get-credit-owner credit-id) err-not-found))
       (current-time (unwrap-panic (get-stacks-block-info? time (- stacks-block-height u1))))
@@ -564,55 +631,51 @@
     (asserts! (not (var-get contract-paused)) err-project-not-active)
     (asserts! (is-eq tx-sender (get owner ownership-data)) err-unauthorized)
     (asserts! (not (get retired credit-data)) err-credit-already-retired)
-    
+
     ;; Transfer ownership
-    (map-set credit-ownership
-      { credit-id: credit-id }
-      {
-        owner: new-owner,
-        acquired-date: current-time,
-        purchase-price: purchase-price
-      }
-    )
-    
+    (map-set credit-ownership { credit-id: credit-id } {
+      owner: new-owner,
+      acquired-date: current-time,
+      purchase-price: purchase-price,
+    })
+
     (ok true)
   )
 )
 
 (define-public (retire-carbon-credit (credit-id uint))
-  (let
-    (
+  (let (
       (credit-data (unwrap! (get-carbon-credit credit-id) err-not-found))
       (ownership-data (unwrap! (get-credit-owner credit-id) err-not-found))
       (current-time (unwrap-panic (get-stacks-block-info? time (- stacks-block-height u1))))
       (project-id (get project-id credit-data))
-      (current-totals (default-to 
-        { total-credits-issued: u0, total-credits-retired: u0, total-co2-reduced: u0, last-issuance-date: none }
+      (current-totals (default-to {
+        total-credits-issued: u0,
+        total-credits-retired: u0,
+        total-co2-reduced: u0,
+        last-issuance-date: none,
+      }
         (get-project-carbon-totals project-id)
       ))
     )
     (asserts! (not (var-get contract-paused)) err-project-not-active)
     (asserts! (is-eq tx-sender (get owner ownership-data)) err-unauthorized)
     (asserts! (not (get retired credit-data)) err-credit-already-retired)
-    
+
     ;; Retire credit
-    (map-set carbon-credits
-      { credit-id: credit-id }
+    (map-set carbon-credits { credit-id: credit-id }
       (merge credit-data {
         retired: true,
         retirement-date: (some current-time),
-        retired-by: (some tx-sender)
+        retired-by: (some tx-sender),
       })
     )
-    
+
     ;; Update project totals
-    (map-set project-carbon-totals
-      { project-id: project-id }
-      (merge current-totals {
-        total-credits-retired: (+ (get total-credits-retired current-totals) u1)
-      })
+    (map-set project-carbon-totals { project-id: project-id }
+      (merge current-totals { total-credits-retired: (+ (get total-credits-retired current-totals) u1) })
     )
-    
+
     (ok true)
   )
 )
@@ -623,25 +686,75 @@
     (description (string-ascii 100))
     (funding-percentage uint)
   )
-  (let
-    (
-      (project-data (unwrap! (get-project project-id) err-not-found))
-    )
+  (let ((project-data (unwrap! (get-project project-id) err-not-found)))
     (asserts! (not (var-get contract-paused)) err-project-not-active)
     (asserts! (is-eq tx-sender (get creator project-data)) err-unauthorized)
-    (asserts! (is-none (get-project-milestone project-id milestone-id)) err-already-exists)
-    (asserts! (<= funding-percentage u100) err-invalid-amount)
-    
-    (map-set project-milestones
-      { project-id: project-id, milestone-id: milestone-id }
-      {
-        description: description,
-        funding-percentage: funding-percentage,
-        completed: false,
-        completion-date: none
-      }
+    (asserts! (is-none (get-project-milestone project-id milestone-id))
+      err-already-exists
     )
-    
+    (asserts! (<= funding-percentage u100) err-invalid-amount)
+
+    (map-set project-milestones {
+      project-id: project-id,
+      milestone-id: milestone-id,
+    } {
+      description: description,
+      funding-percentage: funding-percentage,
+      completed: false,
+      completion-date: none,
+    })
+
     (ok true)
+  )
+)
+
+(define-public (escrow-create
+    (project-id uint)
+    (payee principal)
+    (amount uint)
+  )
+  (let ((project (unwrap! (get-project project-id) err-not-found)))
+    (asserts! (not (var-get contract-paused)) err-project-not-active)
+    (asserts! (> amount u0) err-invalid-amount)
+    (asserts! (is-none (map-get? project-escrows { project-id: project-id }))
+      err-already-exists
+    )
+    (begin
+      (map-set project-escrows { project-id: project-id } {
+        payer: tx-sender,
+        payee: payee,
+        amount: amount,
+        released: false,
+      })
+      (stx-transfer? amount tx-sender (as-contract tx-sender))
+    )
+  )
+)
+
+(define-public (escrow-release (project-id uint))
+  (let ((escrow (unwrap! (map-get? project-escrows { project-id: project-id }) err-not-found)))
+    (asserts! (not (var-get contract-paused)) err-project-not-active)
+    (asserts! (is-eq tx-sender (get payer escrow)) err-unauthorized)
+    (asserts! (not (get released escrow)) err-invalid-status)
+    (begin
+      (map-set project-escrows { project-id: project-id }
+        (merge escrow { released: true })
+      )
+      (as-contract (stx-transfer? (get amount escrow) tx-sender (get payee escrow)))
+    )
+  )
+)
+
+(define-public (escrow-cancel (project-id uint))
+  (let ((escrow (unwrap! (map-get? project-escrows { project-id: project-id }) err-not-found)))
+    (asserts! (not (var-get contract-paused)) err-project-not-active)
+    (asserts! (is-eq tx-sender (get payer escrow)) err-unauthorized)
+    (asserts! (not (get released escrow)) err-invalid-status)
+    (begin
+      (map-set project-escrows { project-id: project-id }
+        (merge escrow { released: true })
+      )
+      (as-contract (stx-transfer? (get amount escrow) tx-sender (get payer escrow)))
+    )
   )
 )
